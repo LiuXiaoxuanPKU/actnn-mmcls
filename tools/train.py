@@ -172,39 +172,19 @@ def main():
             if hook['type'] == 'WandbLoggerHook':
                 hook['init_kwargs']['config'] = copy.deepcopy(cfg)
     
-    if cfg.actnn:
-        import actnn
-        if args.local_rank == 0:
-            actnn.ops.register_parameters(model)
+    # if cfg.actnn:
+    #     import actnn
+    #     actnn.ops.register_hooks_for_modules(model)
 
-        def pack_hook(input):
-            quantized = actnn.ops.quantize_activation(input, None)
-            return (quantized, input.shape)
-
-        def unpack_hook(quantized_and_shape):
-            quantized, input_shape = quantized_and_shape
-            return actnn.ops.dequantize_activation(quantized, input_shape)
-
-        with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
-            train_model(
-                model,
-                datasets,
-                cfg,
-                distributed=distributed,
-                validate=(not args.no_validate),
-                timestamp=timestamp,
-                device='cpu' if args.device == 'cpu' else 'cuda',
-                meta=meta)
-    else:
-        train_model(
-            model,
-            datasets,
-            cfg,
-            distributed=distributed,
-            validate=(not args.no_validate),
-            timestamp=timestamp,
-            device='cpu' if args.device == 'cpu' else 'cuda',
-            meta=meta)
+    train_model(
+        model,
+        datasets,
+        cfg,
+        distributed=distributed,
+        validate=(not args.no_validate),
+        timestamp=timestamp,
+        device='cpu' if args.device == 'cpu' else 'cuda',
+        meta=meta)
 
 
 if __name__ == '__main__':

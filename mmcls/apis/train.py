@@ -157,4 +157,23 @@ def train_model(model,
         runner.resume(cfg.resume_from)
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
-    runner.run(data_loaders, cfg.workflow)
+
+    # runner.run(data_loaders, cfg.workflow)
+    if cfg.actnn:
+        import actnn
+        actnn.ops.filtering_tensors(runner.model.named_parameters())
+        # actnn.ops.filtering_tensors(runner.model.named_buffers())
+        actnn.ops.filtering_tensors(runner.optimizer.state.items())
+
+        def pack_hook(input):
+            quantized = actnn.ops.quantize_activation(input, None)
+            return (quantized, input.shape)
+
+        def unpack_hook(quantized_and_shape):
+            quantized, input_shape = quantized_and_shape
+            return actnn.ops.dequantize_activation(quantized, input_shape)
+
+        with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
+            runner.run(data_loaders, cfg.workflow)
+    else:
+        runner.run(data_loaders, cfg.workflow)
