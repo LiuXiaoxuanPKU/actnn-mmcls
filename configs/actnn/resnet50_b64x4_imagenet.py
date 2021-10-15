@@ -1,5 +1,5 @@
 _base_ = [
-    '../_base_/models/resnet18.py',
+    '../_base_/models/resnet50.py',
     '../_base_/datasets/imagenet_bs32.py',
     '../_base_/schedules/imagenet_bs256.py',
     '../_base_/default_runtime.py'
@@ -18,7 +18,7 @@ log_config = dict(
             init_kwargs=dict(
                 project='classification',
                 entity='actnn',
-                name='resnet18_b64x4_imagenet',
+                name='resnet50_b64x4_imagenet',
             )
         )
     ]

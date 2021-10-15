@@ -165,13 +165,15 @@ def train_model(model,
         # actnn.ops.filtering_tensors(runner.model.named_buffers())
         actnn.ops.filtering_tensors(runner.optimizer.state.items())
 
-        def pack_hook(input):
-            quantized = actnn.ops.quantize_activation(input, None)
-            return (quantized, input.shape)
+        def pack_hook(x):
+            quantized, x_shape = actnn.ops.quantize_activation(x, None), x.shape
+            del x
+            return (quantized, x_shape)
 
-        def unpack_hook(quantized_and_shape):
-            quantized, input_shape = quantized_and_shape
-            return actnn.ops.dequantize_activation(quantized, input_shape)
+        def unpack_hook(x):
+            dequantized = actnn.ops.dequantize_activation(x[0], x[1])
+            del x
+            return dequantized
 
         with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
             runner.run(data_loaders, cfg.workflow)
