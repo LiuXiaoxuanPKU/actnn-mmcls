@@ -47,6 +47,8 @@ def set_random_seed(seed, deterministic=False):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+layer_id = 0
+activations = {}
 
 def train_model(model,
                 dataset,
@@ -113,7 +115,7 @@ def train_model(model,
             work_dir=cfg.work_dir,
             logger=logger,
             meta=meta))
-
+    print(model)
     # an ugly walkaround to make the .log and .log.json filenames the same
     runner.timestamp = timestamp
 
@@ -159,6 +161,7 @@ def train_model(model,
         runner.load_checkpoint(cfg.load_from)
 
     # runner.run(data_loaders, cfg.workflow)
+    runner.actnn = cfg.actnn
     if cfg.actnn:
         import actnn
         actnn.ops.filtering_tensors(runner.model.named_parameters())
@@ -166,16 +169,48 @@ def train_model(model,
         actnn.ops.filtering_tensors(runner.optimizer.state.items())
 
         def pack_hook(x):
+            global layer_id
+            global activations
+            layer_id += 1
+            activations[layer_id] = x
             quantized, x_shape = actnn.ops.quantize_activation(x, None), x.shape
-            del x
-            return (quantized, x_shape)
+            if cfg.check_gradient:
+                set_random_seed(0, True)
+            if layer_id == cfg.layer_id:
+                print(layer_id, "Num of negative ele", (x<0).sum())
+                print(x.shape, x.data_ptr(), x._version, x[0][0], flush=True)
+                return (x, x_shape, layer_id)
+            if layer_id == cfg.layer_id + 1:
+                print(layer_id, "Num of negative ele", (x<0).sum())
+                print(x.shape, x.data_ptr(), x._version, x[0][0], flush=True)
+                exit(0)
+            return (quantized, x_shape, layer_id)
 
         def unpack_hook(x):
+            layer_id = x[2]
+            if layer_id == cfg.layer_id:
+                if cfg.check_gradient:
+                    set_random_seed(0, True)
+                return x[0]
+            global activations
             dequantized = actnn.ops.dequantize_activation(x[0], x[1])
-            del x
+            if cfg.check_gradient:
+                set_random_seed(0, True)
+            error = ((dequantized - activations[layer_id])**2).sum() / ((activations[layer_id])**2).sum()
+            print("Layer %d %s, error %.10f" %(layer_id, x[1], error.item())) 
             return dequantized
 
         with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
             runner.run(data_loaders, cfg.workflow)
     else:
-        runner.run(data_loaders, cfg.workflow)
+        if cfg.check_gradient:
+            def pack_hook(x):
+                set_random_seed(0, True)
+                return x
+            def unpack_hook(x):
+                set_random_seed(0, True)
+                return x
+            with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
+                runner.run(data_loaders, cfg.workflow)
+        else:
+            runner.run(data_loaders, cfg.workflow)
