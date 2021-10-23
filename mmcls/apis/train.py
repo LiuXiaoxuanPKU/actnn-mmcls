@@ -15,17 +15,21 @@ from mmcls.utils import get_root_logger
 try:
     from mmcv.runner.hooks import EvalHook, DistEvalHook
 except ImportError:
-    warnings.warn('DeprecationWarning: EvalHook and DistEvalHook from mmcls '
-                  'will be deprecated.'
-                  'Please install mmcv through master branch.')
+    warnings.warn(
+        "DeprecationWarning: EvalHook and DistEvalHook from mmcls "
+        "will be deprecated."
+        "Please install mmcv through master branch."
+    )
     from mmcls.core import EvalHook, DistEvalHook
 
 # TODO import optimizer hook from mmcv and delete them from mmcls
 try:
     from mmcv.runner import Fp16OptimizerHook
 except ImportError:
-    warnings.warn('DeprecationWarning: FP16OptimizerHook from mmcls will be '
-                  'deprecated. Please install mmcv>=1.1.4.')
+    warnings.warn(
+        "DeprecationWarning: FP16OptimizerHook from mmcls will be "
+        "deprecated. Please install mmcv>=1.1.4."
+    )
     from mmcls.core import Fp16OptimizerHook
 
 
@@ -47,17 +51,21 @@ def set_random_seed(seed, deterministic=False):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+
 layer_id = 0
 activations = {}
 
-def train_model(model,
-                dataset,
-                cfg,
-                distributed=False,
-                validate=False,
-                timestamp=None,
-                device='cuda',
-                meta=None):
+
+def train_model(
+    model,
+    dataset,
+    cfg,
+    distributed=False,
+    validate=False,
+    timestamp=None,
+    device="cuda",
+    meta=None,
+):
     logger = get_root_logger(cfg.log_level)
 
     # prepare data loaders
@@ -72,39 +80,40 @@ def train_model(model,
             num_gpus=len(cfg.gpu_ids),
             dist=distributed,
             round_up=True,
-            seed=cfg.seed) for ds in dataset
+            seed=cfg.seed,
+        )
+        for ds in dataset
     ]
 
     # put model on gpus
     if distributed:
-        find_unused_parameters = cfg.get('find_unused_parameters', False)
+        find_unused_parameters = cfg.get("find_unused_parameters", False)
         # Sets the `find_unused_parameters` parameter in
         # torch.nn.parallel.DistributedDataParallel
         model = MMDistributedDataParallel(
             model.cuda(),
             device_ids=[torch.cuda.current_device()],
             broadcast_buffers=False,
-            find_unused_parameters=find_unused_parameters)
+            find_unused_parameters=find_unused_parameters,
+        )
     else:
-        if device == 'cuda':
-            model = MMDataParallel(
-                model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
-        elif device == 'cpu':
+        if device == "cuda":
+            model = MMDataParallel(model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
+        elif device == "cpu":
             model = model.cpu()
         else:
-            raise ValueError(F'unsupported device name {device}.')
+            raise ValueError(f"unsupported device name {device}.")
 
     # build runner
     optimizer = build_optimizer(model, cfg.optimizer)
 
-    if cfg.get('runner') is None:
-        cfg.runner = {
-            'type': 'EpochBasedRunner',
-            'max_epochs': cfg.total_epochs
-        }
+    if cfg.get("runner") is None:
+        cfg.runner = {"type": "EpochBasedRunner", "max_epochs": cfg.total_epochs}
         warnings.warn(
-            'config is now expected to have a `runner` section, '
-            'please set `runner` in your config.', UserWarning)
+            "config is now expected to have a `runner` section, "
+            "please set `runner` in your config.",
+            UserWarning,
+        )
 
     runner = build_runner(
         cfg.runner,
@@ -114,17 +123,20 @@ def train_model(model,
             optimizer=optimizer,
             work_dir=cfg.work_dir,
             logger=logger,
-            meta=meta))
+            meta=meta,
+        ),
+    )
     print(model)
     # an ugly walkaround to make the .log and .log.json filenames the same
     runner.timestamp = timestamp
 
     # fp16 setting
-    fp16_cfg = cfg.get('fp16', None)
+    fp16_cfg = cfg.get("fp16", None)
     if fp16_cfg is not None:
         optimizer_config = Fp16OptimizerHook(
-            **cfg.optimizer_config, **fp16_cfg, distributed=distributed)
-    elif distributed and 'type' not in cfg.optimizer_config:
+            **cfg.optimizer_config, **fp16_cfg, distributed=distributed
+        )
+    elif distributed and "type" not in cfg.optimizer_config:
         optimizer_config = DistOptimizerHook(**cfg.optimizer_config)
     else:
         optimizer_config = cfg.optimizer_config
@@ -135,8 +147,9 @@ def train_model(model,
         optimizer_config,
         cfg.checkpoint_config,
         cfg.log_config,
-        cfg.get('momentum_config', None),
-        custom_hooks_config=cfg.get('custom_hooks', None))
+        cfg.get("momentum_config", None),
+        custom_hooks_config=cfg.get("custom_hooks", None),
+    )
     if distributed:
         runner.register_hook(DistSamplerSeedHook())
 
@@ -149,9 +162,10 @@ def train_model(model,
             workers_per_gpu=cfg.data.workers_per_gpu,
             dist=distributed,
             shuffle=False,
-            round_up=True)
-        eval_cfg = cfg.get('evaluation', {})
-        eval_cfg['by_epoch'] = cfg.runner['type'] != 'IterBasedRunner'
+            round_up=True,
+        )
+        eval_cfg = cfg.get("evaluation", {})
+        eval_cfg["by_epoch"] = cfg.runner["type"] != "IterBasedRunner"
         eval_hook = DistEvalHook if distributed else EvalHook
         runner.register_hook(eval_hook(val_dataloader, **eval_cfg))
 
@@ -164,52 +178,38 @@ def train_model(model,
     runner.actnn = cfg.actnn
     if cfg.actnn:
         import actnn
-        actnn.ops.filtering_tensors(runner.model.named_parameters())
-        # actnn.ops.filtering_tensors(runner.model.named_buffers())
-        actnn.ops.filtering_tensors(runner.optimizer.state.items())
+
+        controller = actnn.controller.Controller()
+        controller.filter_tensors(runner.model.named_parameters())
+        # actnn.ops.filter_tensors(runner.model.named_buffers())
+        controller.filter_tensors(runner.optimizer.state.items())
+        runner.controller = controller
 
         def pack_hook(x):
-            global layer_id
-            global activations
-            layer_id += 1
-            activations[layer_id] = x
-            quantized, x_shape = actnn.ops.quantize_activation(x, None), x.shape
+            r = controller.quantize(x)
             if cfg.check_gradient:
                 set_random_seed(0, True)
-            if layer_id == cfg.layer_id:
-                print(layer_id, "Num of negative ele", (x<0).sum())
-                print(x.shape, x.data_ptr(), x._version, x[0][0], flush=True)
-                return (x, x_shape, layer_id)
-            if layer_id == cfg.layer_id + 1:
-                print(layer_id, "Num of negative ele", (x<0).sum())
-                print(x.shape, x.data_ptr(), x._version, x[0][0], flush=True)
-                exit(0)
-            return (quantized, x_shape, layer_id)
+            return r
 
         def unpack_hook(x):
-            layer_id = x[2]
-            if layer_id == cfg.layer_id:
-                if cfg.check_gradient:
-                    set_random_seed(0, True)
-                return x[0]
-            global activations
-            dequantized = actnn.ops.dequantize_activation(x[0], x[1])
+            r = controller.dequantize(x)
             if cfg.check_gradient:
                 set_random_seed(0, True)
-            error = ((dequantized - activations[layer_id])**2).sum() / ((activations[layer_id])**2).sum()
-            print("Layer %d %s, error %.10f" %(layer_id, x[1], error.item())) 
-            return dequantized
+            return r
 
         with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
             runner.run(data_loaders, cfg.workflow)
     else:
         if cfg.check_gradient:
+
             def pack_hook(x):
                 set_random_seed(0, True)
                 return x
+
             def unpack_hook(x):
                 set_random_seed(0, True)
                 return x
+
             with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
                 runner.run(data_loaders, cfg.workflow)
         else:

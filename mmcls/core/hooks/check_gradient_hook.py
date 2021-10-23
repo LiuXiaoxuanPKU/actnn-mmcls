@@ -41,7 +41,7 @@
 #                 self.batch_gradient = gradient
 #             else:
 #                 self.batch_gradient += gradient
-            
+
 #         if self.cal_actnn_gradient:
 #             if self.actnn_gradient is None:
 #                 self.actnn_gradient = gradient
@@ -59,6 +59,7 @@ from mmcv.parallel import is_module_wrapper
 from mmcv.runner.hooks import HOOKS, Hook
 import torch
 import pickle
+
 
 @HOOKS.register_module()
 class CheckGradientHook(Hook):
@@ -79,9 +80,11 @@ class CheckGradientHook(Hook):
     def after_train_iter(self, runner):
         if self.every_n_iters(runner, 1):
             gradient = None
-            model = runner.model.module if is_module_wrapper(runner.model) else runner.model
+            model = (
+                runner.model.module if is_module_wrapper(runner.model) else runner.model
+            )
             for param in model.parameters():
-                if param.requires_grad and param.grad is not None:
+                if param.grad is not None:
                     cur_param = param.grad.reshape(1, -1)
                     if gradient is None:
                         gradient = cur_param
@@ -98,9 +101,9 @@ class CheckGradientHook(Hook):
             var = None
             for i in range(self.interval):
                 if var is None:
-                    var = (self.gradients[i] - mean_grad)**2
+                    var = (self.gradients[i] - mean_grad) ** 2
                 else:
-                    var += (self.gradients[i] - mean_grad)**2
+                    var += (self.gradients[i] - mean_grad) ** 2
             print("Gradient Variance", var.sum() / self.interval)
             # exit(0)
 
@@ -111,13 +114,10 @@ class CheckGradientHook(Hook):
             if self.minibatch:
                 prefix += "_minibatch"
             else:
-                assert(self.interval == 1)
+                assert self.interval == 1
                 prefix += "_batch"
             filename = "gradients/%s_gradient.p" % (prefix)
             print("Save gradient to ", filename)
-            with open(filename, 'wb') as f:
+            with open(filename, "wb") as f:
                 pickle.dump(self.gradient, f)
             exit(0)
-            
-
-
