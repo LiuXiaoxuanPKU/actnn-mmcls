@@ -6,7 +6,7 @@ _base_ = [
 ]
 actnn = True
 data = dict(
-    samples_per_gpu=64, # 64*4 = 256
+    samples_per_gpu=64,  # 64*4 = 256
     workers_per_gpu=2,
 )
 
@@ -29,11 +29,10 @@ log_config = dict(
     ]
 )
 
-layer_id = 79
+
 custom_hooks = [
     dict(
-        type="CheckGradientHook",
-        minibatch=True,
+        type="ActnnHook",
         interval=1
     )
 ]

@@ -21,12 +21,7 @@ class ActnnHook(Hook):
     def after_train_iter(self, runner):
         if self.every_n_iters(runner, self.interval):
             model = (
-                runner.model.module if is_module_wrapper(runner.model) else runner.model
+                runner.model.module if is_module_wrapper(
+                    runner.model) else runner.model
             )
-            controller = runner.controller
-            grad = []
-            for param in model.parameters():
-                if param.grad is not None:
-                    grad.append(param.grad.detach().ravel())
-            grad = torch.cat(grad, 0)
-            controller.iterate(grad)
+            runner.controller.iterate(model)
