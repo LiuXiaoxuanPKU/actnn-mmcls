@@ -12,6 +12,7 @@ class ActnnHook(Hook):
     """.
     This hook will call actnn controller.iterate, which is used to update auto precision
     Args:
+        actnn (bool): If actnn is enabled
         interval (int): Update interval (every k iterations)
     """
 
@@ -19,9 +20,10 @@ class ActnnHook(Hook):
         self.interval = interval
 
     def after_train_iter(self, runner):
-        if self.every_n_iters(runner, self.interval):
-            model = (
-                runner.model.module if is_module_wrapper(
-                    runner.model) else runner.model
-            )
-            runner.controller.iterate(model)
+        if runner.actnn:
+            if self.every_n_iters(runner, self.interval):
+                model = (
+                    runner.model.module if is_module_wrapper(
+                        runner.model) else runner.model
+                )
+                runner.controller.iterate(model)

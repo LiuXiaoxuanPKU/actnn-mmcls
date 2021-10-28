@@ -98,7 +98,8 @@ def train_model(
         )
     else:
         if device == "cuda":
-            model = MMDataParallel(model.cuda(cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
+            model = MMDataParallel(model.cuda(
+                cfg.gpu_ids[0]), device_ids=cfg.gpu_ids)
         elif device == "cpu":
             model = model.cpu()
         else:
@@ -108,7 +109,8 @@ def train_model(
     optimizer = build_optimizer(model, cfg.optimizer)
 
     if cfg.get("runner") is None:
-        cfg.runner = {"type": "EpochBasedRunner", "max_epochs": cfg.total_epochs}
+        cfg.runner = {"type": "EpochBasedRunner",
+                      "max_epochs": cfg.total_epochs}
         warnings.warn(
             "config is now expected to have a `runner` section, "
             "please set `runner` in your config.",
@@ -179,7 +181,8 @@ def train_model(
     if cfg.actnn:
         import actnn
 
-        controller = actnn.controller.Controller()
+        controller = actnn.controller.Controller(
+            default_bit=cfg.bit, auto_prec=cfg.auto_prec, check_error=True)
         controller.filter_tensors(runner.model.named_parameters())
         # actnn.ops.filter_tensors(runner.model.named_buffers())
         controller.filter_tensors(runner.optimizer.state.items())
@@ -187,30 +190,13 @@ def train_model(
 
         def pack_hook(x):
             r = controller.quantize(x)
-            if cfg.check_gradient:
-                set_random_seed(0, True)
             return r
 
         def unpack_hook(x):
             r = controller.dequantize(x)
-            if cfg.check_gradient:
-                set_random_seed(0, True)
             return r
 
         with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
             runner.run(data_loaders, cfg.workflow)
     else:
-        if cfg.check_gradient:
-
-            def pack_hook(x):
-                set_random_seed(0, True)
-                return x
-
-            def unpack_hook(x):
-                set_random_seed(0, True)
-                return x
-
-            with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
-                runner.run(data_loaders, cfg.workflow)
-        else:
-            runner.run(data_loaders, cfg.workflow)
+        runner.run(data_loaders, cfg.workflow)
