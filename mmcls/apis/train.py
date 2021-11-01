@@ -3,6 +3,7 @@ import random
 import warnings
 
 import numpy as np
+from numpy.lib.function_base import quantile
 import torch
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import DistSamplerSeedHook, build_optimizer, build_runner
@@ -52,8 +53,7 @@ def set_random_seed(seed, deterministic=False):
         torch.backends.cudnn.benchmark = False
 
 
-layer_id = 0
-activations = {}
+quantize_cnt = 0
 
 
 def train_model(
@@ -176,20 +176,22 @@ def train_model(
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
 
-    # runner.run(data_loaders, cfg.workflow)
+    # set_random_seed(0, True)
     runner.actnn = cfg.actnn
+    runner.auto_prec = cfg.auto_prec
+    runner.bit = cfg.bit
     if cfg.actnn:
         import actnn
-
         controller = actnn.controller.Controller(
-            default_bit=cfg.bit, auto_prec=cfg.auto_prec, check_error=True)
+            default_bit=cfg.bit, auto_prec=cfg.auto_prec)
         controller.filter_tensors(runner.model.named_parameters())
-        # actnn.ops.filter_tensors(runner.model.named_buffers())
-        controller.filter_tensors(runner.optimizer.state.items())
         runner.controller = controller
 
         def pack_hook(x):
+            global quantize_cnt
             r = controller.quantize(x)
+            set_random_seed(quantize_cnt, True)
+            quantize_cnt += 1
             return r
 
         def unpack_hook(x):
@@ -199,4 +201,16 @@ def train_model(
         with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
             runner.run(data_loaders, cfg.workflow)
     else:
-        runner.run(data_loaders, cfg.workflow)
+        def pack_hook(x):
+            global quantize_cnt
+            set_random_seed(quantize_cnt, True)
+            quantize_cnt += 1
+            return x
+
+        def unpack_hook(x):
+            return x
+
+        with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
+            runner.run(data_loaders, cfg.workflow)
+
+        # runner.run(data_loaders, cfg.workflow)
