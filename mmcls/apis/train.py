@@ -178,8 +178,6 @@ def train_model(
 
     # set_random_seed(0, True)
     runner.actnn = cfg.actnn
-    runner.auto_prec = cfg.auto_prec
-    runner.bit = cfg.bit
     if cfg.actnn:
         import actnn
         controller = actnn.controller.Controller(
@@ -188,10 +186,7 @@ def train_model(
         runner.controller = controller
 
         def pack_hook(x):
-            global quantize_cnt
             r = controller.quantize(x)
-            set_random_seed(quantize_cnt, True)
-            quantize_cnt += 1
             return r
 
         def unpack_hook(x):
@@ -201,16 +196,4 @@ def train_model(
         with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
             runner.run(data_loaders, cfg.workflow)
     else:
-        def pack_hook(x):
-            global quantize_cnt
-            set_random_seed(quantize_cnt, True)
-            quantize_cnt += 1
-            return x
-
-        def unpack_hook(x):
-            return x
-
-        with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
-            runner.run(data_loaders, cfg.workflow)
-
-        # runner.run(data_loaders, cfg.workflow)
+        runner.run(data_loaders, cfg.workflow)
