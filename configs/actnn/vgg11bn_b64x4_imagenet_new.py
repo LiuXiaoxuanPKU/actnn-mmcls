@@ -6,17 +6,12 @@ _base_ = [
 ]
 actnn = True
 bit = 8
-auto_prec = True
+auto_prec = False
 
 data = dict(
     samples_per_gpu=64,  # 64*4 = 256
     workers_per_gpu=2,
 )
-
-# checkpoint every 5k iter
-checkpoint_config = dict(interval=5000, by_epoch=False)
-# load from checkpoint to test the correctness of auto precision
-load_from = "/home/ubuntu/actnn-mmcls/work_dirs/vgg11bn_b64x4_imagenet_new/epoch_1.pth"
 
 log_config = dict(
     interval=100,
@@ -35,7 +30,6 @@ log_config = dict(
 
 
 custom_hooks = [
-    # dict(type="RecordGradientHook", interval=100),
     dict(
         type="ActnnHook",
         interval=1
