@@ -128,7 +128,7 @@ def train_model(
             meta=meta,
         ),
     )
-    print(model)
+
     # an ugly walkaround to make the .log and .log.json filenames the same
     runner.timestamp = timestamp
 
@@ -177,40 +177,4 @@ def train_model(
         runner.load_checkpoint(cfg.load_from)
 
     # set_random_seed(0, True)
-    runner.actnn = cfg.actnn
-    runner.auto_prec = cfg.auto_prec
-    runner.bit = cfg.bit
-    if cfg.actnn:
-        import actnn
-        controller = actnn.controller.Controller(
-            default_bit=cfg.bit, auto_prec=cfg.auto_prec)
-        controller.filter_tensors(runner.model.named_parameters())
-        runner.controller = controller
-
-        def pack_hook(x):
-            global quantize_cnt
-            r = controller.quantize(x)
-            set_random_seed(quantize_cnt, True)
-            quantize_cnt += 1
-            return r
-
-        def unpack_hook(x):
-            r = controller.dequantize(x)
-            return r
-
-        with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
-            runner.run(data_loaders, cfg.workflow)
-    else:
-        def pack_hook(x):
-            global quantize_cnt
-            set_random_seed(quantize_cnt, True)
-            quantize_cnt += 1
-            return x
-
-        def unpack_hook(x):
-            return x
-
-        with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
-            runner.run(data_loaders, cfg.workflow)
-
-        # runner.run(data_loaders, cfg.workflow)
+    runner.run(data_loaders, cfg.workflow)

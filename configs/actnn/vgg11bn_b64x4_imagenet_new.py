@@ -4,9 +4,6 @@ _base_ = [
     '../_base_/schedules/imagenet_bs256.py',
     '../_base_/default_runtime.py'
 ]
-actnn = True
-bit = 8
-auto_prec = True
 
 data = dict(
     samples_per_gpu=64,  # 64*4 = 256
@@ -35,9 +32,10 @@ log_config = dict(
 
 
 custom_hooks = [
-    # dict(type="RecordGradientHook", interval=100),
     dict(
         type="ActnnHook",
+        bit=4,
+        auto_prec=False,
         interval=1
     )
 ]
