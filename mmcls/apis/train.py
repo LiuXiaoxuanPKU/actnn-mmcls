@@ -53,8 +53,6 @@ def set_random_seed(seed, deterministic=False):
         torch.backends.cudnn.benchmark = False
 
 
-quantize_cnt = 0
-
 
 def train_model(
     model,
@@ -128,7 +126,7 @@ def train_model(
             meta=meta,
         ),
     )
-    print(model)
+
     # an ugly walkaround to make the .log and .log.json filenames the same
     runner.timestamp = timestamp
 
@@ -177,23 +175,4 @@ def train_model(
         runner.load_checkpoint(cfg.load_from)
 
     # set_random_seed(0, True)
-    runner.actnn = cfg.actnn
-    if cfg.actnn:
-        import actnn
-        controller = actnn.controller.Controller(
-            default_bit=cfg.bit, auto_prec=cfg.auto_prec)
-        controller.filter_tensors(runner.model.named_parameters())
-        runner.controller = controller
-
-        def pack_hook(x):
-            r = controller.quantize(x)
-            return r
-
-        def unpack_hook(x):
-            r = controller.dequantize(x)
-            return r
-
-        with torch.autograd.graph.saved_tensors_hooks(pack_hook, unpack_hook):
-            runner.run(data_loaders, cfg.workflow)
-    else:
-        runner.run(data_loaders, cfg.workflow)
+    runner.run(data_loaders, cfg.workflow)
