@@ -3,7 +3,6 @@ import random
 import warnings
 
 import numpy as np
-from numpy.lib.function_base import quantile
 import torch
 from mmcv.parallel import MMDataParallel, MMDistributedDataParallel
 from mmcv.runner import DistSamplerSeedHook, build_optimizer, build_runner
@@ -51,7 +50,6 @@ def set_random_seed(seed, deterministic=False):
     if deterministic:
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-
 
 
 def train_model(
@@ -174,5 +172,4 @@ def train_model(
     elif cfg.load_from:
         runner.load_checkpoint(cfg.load_from)
 
-    # set_random_seed(0, True)
     runner.run(data_loaders, cfg.workflow)

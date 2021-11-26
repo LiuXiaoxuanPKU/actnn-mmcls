@@ -171,10 +171,6 @@ def main():
         for hook in cfg.log_config.hooks:
             if hook['type'] == 'WandbLoggerHook':
                 hook['init_kwargs']['config'] = copy.deepcopy(cfg)
-    
-    # if cfg.actnn:
-    #     import actnn
-    #     actnn.ops.register_hooks_for_modules(model)
 
     train_model(
         model,
