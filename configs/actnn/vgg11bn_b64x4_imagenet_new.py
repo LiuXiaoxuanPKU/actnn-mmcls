@@ -6,7 +6,8 @@ _base_ = [
 ]
 
 data = dict(
-    samples_per_gpu=64,  # 64*4 = 256
+    # samples_per_gpu=4,  # 64*4 = 256
+    samples_per_gpu=64,
     workers_per_gpu=2,
 )
 
@@ -30,12 +31,13 @@ log_config = dict(
     ]
 )
 
-
+actnn = True
+bit = 4
 custom_hooks = [
+    # dict(type="RecordGradientHook", interval=1000),
     dict(
         type="ActnnHook",
-        bit=4,
-        auto_prec=False,
-        interval=1
+        quantize=actnn,
+        bit=bit,
     )
 ]
